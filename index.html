@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Music Player with Playlist</title>
+    <title>Music Player with Lyrics</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -96,6 +96,27 @@
         .controls button:hover {
             color: #007bff;
         }
+
+        .lyrics {
+            margin-top: 20px;
+            text-align: left;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .lyrics p {
+            margin: 5px 0;
+            opacity: 0.5;
+            transition: opacity 0.3s, font-weight 0.3s;
+        }
+
+        .lyrics p.active {
+            opacity: 1;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -115,6 +136,7 @@
                 <button onclick="playPrevious()">⏮️</button>
                 <button onclick="playNext()">⏭️</button>
             </div>
+            <div class="lyrics" id="lyrics"></div>
         </div>
     </div>
 
@@ -124,14 +146,16 @@
         const playlistList = document.getElementById("playlistList");
         const audioControls = document.getElementById("audioControls");
         const audio = document.getElementById("audio");
+        const lyricsElement = document.getElementById("lyrics");
 
         // Mock list of songs (replace with actual file names from your folder)
         const songs = [
-            { name: "Song 1", file: "songs/song1.mp3" },
-            { name: "Song 2", file: "songs/song2.mp3" }
+            { name: "Song 1", file: "songs/song1.mp3", lyrics: "lyrics/song1.lrc" },
+            { name: "Song 2", file: "songs/song2.mp3", lyrics: "lyrics/song2.lrc" }
         ];
 
         let currentSongIndex = 0;
+        let lyricsData = [];
 
         // Show playlist when button is clicked
         playlistButton.addEventListener("click", () => {
@@ -156,8 +180,67 @@
             const song = songs[index];
             audio.src = song.file;
             audioControls.style.display = "block";
+            fetchLyrics(song.lyrics);
             audio.play();
         }
+
+        // Fetch lyrics from LRC file
+        function fetchLyrics(lyricsFile) {
+            fetch(lyricsFile)
+                .then(response => response.text())
+                .then(text => {
+                    lyricsData = parseLRC(text);
+                    renderLyrics();
+                })
+                .catch(error => {
+                    console.error("Error loading lyrics:", error);
+                    lyricsElement.innerHTML = "<p>Lyrics not available.</p>";
+                });
+        }
+
+        // Parse LRC file
+        function parseLRC(lrcText) {
+            const lines = lrcText.split("\n");
+            const parsedLyrics = [];
+
+            lines.forEach(line => {
+                const match = line.match(/^\[(\d{2}):(\d{2}\.\d{2})\](.*)/);
+                if (match) {
+                    const minutes = parseFloat(match[1]);
+                    const seconds = parseFloat(match[2]);
+                    const time = minutes * 60 + seconds;
+                    const text = match[3].trim();
+                    parsedLyrics.push({ time, text });
+                }
+            });
+
+            return parsedLyrics;
+        }
+
+        // Render lyrics
+        function renderLyrics() {
+            lyricsElement.innerHTML = "";
+            lyricsData.forEach(line => {
+                const p = document.createElement("p");
+                p.textContent = line.text;
+                lyricsElement.appendChild(p);
+            });
+        }
+
+        // Highlight current line of lyrics
+        audio.addEventListener("timeupdate", () => {
+            const currentTime = audio.currentTime;
+            const lines = lyricsElement.querySelectorAll("p");
+
+            lines.forEach((line, index) => {
+                const nextLineTime = index < lyricsData.length - 1 ? lyricsData[index + 1].time : Infinity;
+                if (currentTime >= lyricsData[index].time && currentTime < nextLineTime) {
+                    line.classList.add("active");
+                } else {
+                    line.classList.remove("active");
+                }
+            });
+        });
 
         // Play next song
         function playNext() {
